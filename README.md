@@ -8,3 +8,7 @@ Week 2: Learn Convolutional Neural Networks (CNN) and their applications
 Week 3: Learn Federated Learning and simulate FL tutorial on different datasets
 
 Week 4: Learn how to extract personal sleep patterns from multiple devices and store them locally
+
+
+# pFL_simulation Prerequisites
+pip install torch flwr pandas numpy scikit-learn
