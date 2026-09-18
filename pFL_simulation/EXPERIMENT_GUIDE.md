@@ -27,7 +27,7 @@
 > 💡 **참고**: 도현이가 데스크탑에서 서버를 먼저 켠 후, 도현이가 알려준 **서버 IP 주소**를 입력하고 접속합니다.
 
 ### 1단계: 최신 코드 내려받기
-터미널을 열고 프로젝트 루트 디렉토리에서 아래 명령어를 실행합니다:
+터미널(윈도우는 powershell) 을 열고 프로젝트 루트 디렉토리에서 아래 명령어를 실행합니다:
 ```bash
 # 1. 최신 코드 pull
 git pull origin main
@@ -36,10 +36,10 @@ git pull origin main
 cd pFL_simulation
 ```
 
-### 2단계: 가상환경 활성화
+### (가상환경 없다면 그냥 실행해도 무관!) 2단계: 가상환경 활성화
 각자의 파이썬 가상환경을 활성화합니다 (예시):
 ```bash
-source ~/leo_fl_env/bin/activate
+source ~/pFL_env/bin/activate
 # 또는
 conda activate <가상환경이름>
 ```
@@ -47,18 +47,18 @@ conda activate <가상환경이름>
 ### 3단계: 실험 실행
 
 #### [실험 1] PIA 기반 연합학습 (가중치 교환 모드)
-도현이가 PIA 서버(포트 8080)를 실행하면, 아래 명령어를 입력하여 접속합니다:
+PIA 서버(포트 8080)를 실행하면, 아래 명령어를 입력하여 접속합니다:
 ```bash
-# <도현_서버_IP> 부분에 도현이가 알려준 IP(예: Tailscale IP 100.x.x.x) 입력
-python client.py <도현_서버_IP>:8080
+# <도현_서버_IP> 부분에 알려준 IP(예: Tailscale IP 100.x.x.x) 입력
+python client.py <서버_IP>:8080
 ```
 - 예시: `python client.py 100.85.120.45:8080`
 
 #### [실험 2] CLIA 기반 연합학습 (초경량 로짓 교환 모드)
-도현이가 CLIA 서버(포트 8081)를 실행하면, 아래 명령어를 입력하여 접속합니다:
+CLIA 서버(포트 8081)를 실행하면, 아래 명령어를 입력하여 접속합니다:
 ```bash
 # CLIA는 기본 포트 8081 사용
-python client_CLIA.py <도현_서버_IP>:8081
+python client_CLIA.py <서버_IP>:8081
 ```
 - 예시: `python client_CLIA.py 100.85.120.45:8081`
 
@@ -89,7 +89,7 @@ python server.py
 ```
 > `[Server] Waiting for 9 distributed clients to connect...` 문구가 뜨며 대기합니다.
 
-#### 터미널 2: 도현 로컬 클라이언트 (Client #3) 실행
+#### 터미널 2: 로컬 클라이언트 (Client #3) 실행
 ```bash
 cd /home/dohyun-kim/GNU/pFL_distributed_system/pFL_simulation
 source ~/leo_fl_env/bin/activate
@@ -116,7 +116,7 @@ source ~/leo_fl_env/bin/activate
 python server_CLIA.py 8081
 ```
 
-#### 터미널 2: 도현 로컬 클라이언트 (Client #3) 실행
+#### 터미널 2: 로컬 클라이언트 (Client #3) 실행
 ```bash
 cd /home/dohyun-kim/GNU/pFL_distributed_system/pFL_simulation
 source ~/leo_fl_env/bin/activate
