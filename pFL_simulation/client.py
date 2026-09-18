@@ -7,9 +7,23 @@ import numpy as np
 import flwr as fl
 from model import PFLHealthModel
 
-# 1. 데이터 로드 및 로컬 Z-score 표준화
-print("[Client] Loading local dataset (health_data.csv)...")
-df = pd.read_csv("health_data.csv")
+# 1. 인자 파싱 및 데이터 로드 (단일 클라이언트 및 다중 시뮬레이션 파티션 지원)
+# Usage: python client.py <server_address> [client_id] [data_path] [total_partitions]
+server_address = sys.argv[1] if len(sys.argv) > 1 else "127.0.0.1:8080"
+client_id = sys.argv[2] if len(sys.argv) > 2 else "1"
+data_path = sys.argv[3] if len(sys.argv) > 3 else "health_data.csv"
+total_partitions = int(sys.argv[4]) if len(sys.argv) > 4 else 1
+
+print(f"[Client #{client_id}] Loading dataset from '{data_path}'...")
+df = pd.read_csv(data_path)
+
+if total_partitions > 1:
+    idx = (int(client_id) - 1) % total_partitions
+    chunk_size = len(df) // total_partitions
+    start_idx = idx * chunk_size
+    end_idx = (idx + 1) * chunk_size if idx < total_partitions - 1 else len(df)
+    df = df.iloc[start_idx:end_idx].reset_index(drop=True)
+    print(f"[Client #{client_id}] Allocated partition {idx+1}/{total_partitions}: rows {start_idx}~{end_idx} ({len(df)} samples)")
 
 feature_cols = ["sleep_hours", "rhr", "hrv", "active_calories"]
 X_raw = df[feature_cols].values
@@ -31,9 +45,10 @@ criterion = nn.MSELoss()
 
 # 3. Flower NumPyClient 정의 (Shared Layer만 가중치 동기화)
 class HealthClient(fl.client.NumPyClient):
-    def __init__(self):
+    def __init__(self, client_id="1"):
         super().__init__()
         self.round = 0
+        self.client_id = client_id
 
     def get_parameters(self, config):
         # Shared Extractor의 가중치만 서버로 반환
@@ -90,7 +105,7 @@ class HealthClient(fl.client.NumPyClient):
 
         # 3. 라운드별 전송 용량 및 모델 정확도 출력
         print(f"\n" + "="*65)
-        print(f" [Round {current_round}] 로컬 학습 및 전송 요약")
+        print(f" [Client #{self.client_id} | Round {current_round}] 로컬 학습 및 전송 요약")
         print(f" ---------------------------------------------------------------")
         print(f" ▶ 서버 전송 데이터 용량 : {upload_kb:.2f} KB ({upload_bytes:,} Bytes)")
         print(f" ▶ 로컬 모델 정확도 (오차 ±0.10 이내) : {accuracy:.2f}%")
@@ -108,7 +123,7 @@ class HealthClient(fl.client.NumPyClient):
         self.set_parameters(parameters)
         mse, mae, accuracy = self.compute_metrics()
         current_round = config.get("server_round", self.round)
-        print(f" >> [Round {current_round} Eval] Test Loss(MSE): {mse:.4f} | Accuracy: {accuracy:.2f}%")
+        print(f" >> [Client #{self.client_id} | Round {current_round} Eval] Test Loss(MSE): {mse:.4f} | Accuracy: {accuracy:.2f}%")
         return float(mse), len(train_loader.dataset), {
             "loss": float(mse),
             "mae": float(mae),
@@ -117,14 +132,8 @@ class HealthClient(fl.client.NumPyClient):
 
 # 4. 서버 연결 실행
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python client.py ")
-        print("Example: python client.py 100.85.120.45:8080")
-        sys.exit(1)
-
-    server_address = sys.argv[1]
-    print(f"[Client] Connecting to PFL Server at {server_address}...")
+    print(f"[Client #{client_id}] Connecting to PFL Server at {server_address}...")
     fl.client.start_client(
         server_address=server_address,
-        client=HealthClient().to_client()
+        client=HealthClient(client_id=client_id).to_client()
     )

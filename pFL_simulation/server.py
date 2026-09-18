@@ -3,8 +3,10 @@ from typing import List, Tuple, Dict, Optional, Union
 from flwr.common import Metrics, Parameters, Scalar
 from flwr.server.client_proxy import ClientProxy
 
-# 총 3대의 클라이언트가 모두 연결되어야 각 라운드 학습 진행
-NUM_CLIENTS = 3
+import sys
+
+# 총 9대의 클라이언트가 모두 연결되어야 각 라운드 학습 진행 (기존 3대 + 데스크탑 시뮬레이션 6대)
+NUM_CLIENTS = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 9
 NUM_ROUNDS = 100
 
 # 1. 클라이언트 메트릭 가중 평균 집계 함수

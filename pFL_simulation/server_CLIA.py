@@ -4,8 +4,8 @@ from typing import List, Tuple, Dict, Optional, Union
 from flwr.common import Metrics, Parameters, Scalar
 from flwr.server.client_proxy import ClientProxy
 
-# 총 3대의 클라이언트가 모두 연결되어야 각 라운드 학습 진행
-NUM_CLIENTS = 3
+# 총 9대의 클라이언트가 모두 연결되어야 각 라운드 학습 진행 (기존 3대 + 데스크탑 시뮬레이션 6대)
+NUM_CLIENTS = int(sys.argv[2]) if len(sys.argv) >= 3 and sys.argv[2].isdigit() else 9
 NUM_ROUNDS = 100
 DEFAULT_PORT = 8081  # PIA 서버(8080)와 포트 충돌 없이 동시 실행 가능
 
