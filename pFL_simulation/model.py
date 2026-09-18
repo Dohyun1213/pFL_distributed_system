@@ -46,30 +46,38 @@ class TabularInvertedResidual(nn.Module):
 
 # 3. 개인화 연합학습 (pFL) 메인 모델
 class PFLHealthModel(nn.Module):
-    def __init__(self, input_dim=4, embed_dim=32, hidden_dim=64):
+    def __init__(self, input_dim=4, embed_dim=32, hidden_dim=64, num_blocks=4):
         super().__init__()
         
         # [글로벌 공유 특성 추출기] (MobileNetV3 스타일 Backbone)
         # 여러 클라이언트 간 공유되어 일반적인 건강 지표 패턴을 학습
-        self.shared_extractor = nn.Sequential(
+        extractor_layers = [
             # Input Stem
             nn.Linear(input_dim, embed_dim),
             nn.LayerNorm(embed_dim),
             nn.Hardswish(inplace=True),
+        ]
+        
+        # Inverted Bottleneck Blocks (구조를 깊게 확장하여 4개 블록으로 표현력 강화)
+        for _ in range(num_blocks):
+            extractor_layers.append(
+                TabularInvertedResidual(embed_dim, hidden_dim, embed_dim)
+            )
             
-            # Inverted Bottleneck Block 1
-            TabularInvertedResidual(embed_dim, hidden_dim, embed_dim),
-            # Inverted Bottleneck Block 2
-            TabularInvertedResidual(embed_dim, hidden_dim, embed_dim),
-        )
+        self.shared_extractor = nn.Sequential(*extractor_layers)
 
         # [로컬 개인화 헤드]
-        # 사용자 고유의 생체 반응 특성에 맞게 로컬에서만 학습 및 유지
+        # 사용자 고유의 생체 반응 특성에 맞게 로컬에서만 학습 및 유지 (다층 MLP 구조로 심화)
         self.local_head = nn.Sequential(
-            nn.Linear(embed_dim, 16),
+            nn.Linear(embed_dim, 24),
+            nn.LayerNorm(24),
             nn.Hardswish(inplace=True),
             nn.Dropout(0.1),
-            nn.Linear(16, 1),
+            nn.Linear(24, 12),
+            nn.LayerNorm(12),
+            nn.Hardswish(inplace=True),
+            nn.Dropout(0.1),
+            nn.Linear(12, 1),
             nn.Tanh() # 출력 범위: -1.0 ~ +1.0
         )
 

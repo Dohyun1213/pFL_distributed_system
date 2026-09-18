@@ -31,6 +31,10 @@ criterion = nn.MSELoss()
 
 # 3. Flower NumPyClient 정의 (Shared Layer만 가중치 동기화)
 class HealthClient(fl.client.NumPyClient):
+    def __init__(self):
+        super().__init__()
+        self.round = 0
+
     def get_parameters(self, config):
         # Shared Extractor의 가중치만 서버로 반환
         return [val.cpu().numpy() for val in model.shared_extractor.state_dict().values()]
@@ -41,7 +45,27 @@ class HealthClient(fl.client.NumPyClient):
         state_dict = {k: torch.tensor(v) for k, v in params_dict}
         model.shared_extractor.load_state_dict(state_dict, strict=True)
     
+    def compute_metrics(self):
+        model.eval()
+        all_preds, all_targets = [], []
+        with torch.no_grad():
+            for batch_x, batch_y in train_loader:
+                all_preds.append(model(batch_x))
+                all_targets.append(batch_y)
+        preds = torch.cat(all_preds)
+        targets = torch.cat(all_targets)
+
+        mse = criterion(preds, targets).item()
+        mae = torch.mean(torch.abs(preds - targets)).item()
+        # 오차 ±0.10 이내를 올바른 예측으로 간주하는 허용 오차 기준 정확도(%)
+        tolerance = 0.10
+        accuracy = (torch.abs(preds - targets) <= tolerance).float().mean().item() * 100.0
+        return mse, mae, accuracy
+
     def fit(self, parameters, config):
+        self.round += 1
+        current_round = config.get("server_round", self.round)
+
         self.set_parameters(parameters)
         model.train()
         epoch_losses = []
@@ -56,19 +80,40 @@ class HealthClient(fl.client.NumPyClient):
                 total_loss += loss.item()
             epoch_losses.append(total_loss / len(train_loader))
         
-        print(f" >> Local Epoch Loss: {epoch_losses[-1]:.4f}")
-        return self.get_parameters(config={}), len(train_loader.dataset), {}
+        # 1. 로컬 모델 정확도 및 평가 지표 계산
+        mse, mae, accuracy = self.compute_metrics()
+
+        # 2. 서버로 전송할 파라미터 및 전송 데이터 용량 계산
+        upload_params = self.get_parameters(config={})
+        upload_bytes = sum(arr.nbytes for arr in upload_params)
+        upload_kb = upload_bytes / 1024.0
+
+        # 3. 라운드별 전송 용량 및 모델 정확도 출력
+        print(f"\n" + "="*65)
+        print(f" [Round {current_round}] 로컬 학습 및 전송 요약")
+        print(f" ---------------------------------------------------------------")
+        print(f" ▶ 서버 전송 데이터 용량 : {upload_kb:.2f} KB ({upload_bytes:,} Bytes)")
+        print(f" ▶ 로컬 모델 정확도 (오차 ±0.10 이내) : {accuracy:.2f}%")
+        print(f" ▶ 로컬 모델 손실 (MSE / MAE) : {mse:.4f} / {mae:.4f}")
+        print(f"="*65 + "\n")
+
+        return upload_params, len(train_loader.dataset), {
+            "loss": float(mse),
+            "mae": float(mae),
+            "accuracy": float(accuracy),
+            "upload_bytes": int(upload_bytes)
+        }
 
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
-        model.eval()
-        loss = 0.0
-        with torch.no_grad():
-            for batch_x, batch_y in train_loader:
-                pred = model(batch_x)
-                loss += criterion(pred, batch_y).item()
-        loss /= len(train_loader)
-        return float(loss), len(train_loader.dataset), {"loss": float(loss)}
+        mse, mae, accuracy = self.compute_metrics()
+        current_round = config.get("server_round", self.round)
+        print(f" >> [Round {current_round} Eval] Test Loss(MSE): {mse:.4f} | Accuracy: {accuracy:.2f}%")
+        return float(mse), len(train_loader.dataset), {
+            "loss": float(mse),
+            "mae": float(mae),
+            "accuracy": float(accuracy)
+        }
 
 # 4. 서버 연결 실행
 if __name__ == "__main__":
